@@ -1,8 +1,8 @@
-Source: dtkgui
+Source: dtk6gui
 Section: libdevel
 Priority: optional
 Maintainer: Deepin Packages Builder <packages@deepin.com>
-Build-Depends: debhelper-compat (= 12), pkg-config, 
+Build-Depends: debhelper-compat (= 12), pkg-config,
  qt6-base-private-dev, qt6-base-dev-tools, qt6-tools-dev,
  libdtk6core-dev, libdtkcommon-dev(>=5.6.16),
  doxygen, graphviz, librsvg2-dev, libfreeimage-dev, libraw-dev,
