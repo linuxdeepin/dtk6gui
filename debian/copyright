@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: dtkgui
-Source: https://github.com/linuxdeepin/dtkgui
+Upstream-Name: dtk6gui
+Source: https://github.com/linuxdeepin/dtk6gui
 
 Files: *
 Copyright: 2022 Uniontech Software Technology Co., Ltd.

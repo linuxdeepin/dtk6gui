@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
-export QT_SELECT = qt5
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
@@ -19,8 +18,6 @@ endif
 
 override_dh_auto_configure:
 	dh_auto_configure -- -DBUILD_TESTING=OFF -DBUILD_DOCS=ON -DDTK_VERSION=$(_PACK_VER)
-#override_dh_auto_test:
-#	echo "skip auto test"
 
 override_dh_makeshlibs:
-	dh_makeshlibs  -V "libdtkgui5 (>= $(shell echo $(VERSION) | cut -d '.' -f 1,2))"
+	dh_makeshlibs  -V "libdtk6gui (>= $(shell echo $(VERSION) | cut -d '.' -f 1,2))"
