@@ -6,7 +6,6 @@
 #include "dplatformhandle.h"
 #include "dplatformtheme.h"
 #include "dwindowmanagerhelper.h"
-#include "wayland/dcontextshellwindow.h"
 
 #include <QWindow>
 #include <QGuiApplication>
@@ -635,14 +634,6 @@ bool DPlatformHandle::setEnabledNoTitlebarForWindow(QWindow *window, bool enable
     };
     if (!(isDXcbPlatform() || isDWaylandPlatform()))
         return false;
-
-    if (window && isDWaylandPlatform()) {
-        DContextShellWindow *contextWindow = DContextShellWindow::get(window);
-        if (contextWindow->noTitlebar() == enable)
-            return true;
-        contextWindow->setNoTitlebar(enable);
-        return true;
-    }
 
     if (isEnabledNoTitlebar(window) == enable)
         return true;
