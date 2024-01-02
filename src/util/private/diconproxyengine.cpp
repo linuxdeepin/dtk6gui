@@ -18,7 +18,7 @@
 #include <QDir>
 
 #include <private/qiconloader_p.h>
-#if (XDG_ICON_VERSION_MAR >= 3)
+#if XDG_ICON_VERSION_MAR >= 3
 #define private public
 #include <private/xdgiconloader/xdgiconloader_p.h>
 #undef private
@@ -156,8 +156,9 @@ QIconEngine *DIconProxyEngine::clone() const
 
 bool DIconProxyEngine::read(QDataStream &in)
 {
-    // ensureEngine, will changed themeName if not the same
     in >> m_iconName >> m_iconThemeName;
+
+    ensureEngine();
     return m_iconEngine ? m_iconEngine->read(in) : false;
 }
 
