@@ -12,7 +12,7 @@ Standards-Version: 3.9.8
 Package: libdtk6gui
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libdtkdata,
- qt6-image-formats-plugins, qt6-base-private-dev
+ qt6-image-formats-plugins
 Multi-Arch: same
 Description: Deepin Tool Kit Gui library
  DtkGui is base library of Deepin Qt/C++ applications.
