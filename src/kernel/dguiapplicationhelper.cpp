@@ -855,9 +855,7 @@ DPalette DGuiApplicationHelper::standardPalette(DGuiApplicationHelper::ColorType
 
 #if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
         if (role == QPalette::PlaceholderText) {
-            // 5.15新添加此颜色 这里使用5.11的颜色保证效果与5.11对齐
             color = dcolor_list[DPalette::PlaceholderText];
-            continue;
         }
 #endif
         // 处理半透明色
@@ -1197,7 +1195,7 @@ DPlatformTheme *DGuiApplicationHelper::windowTheme(QWindow *window) const
   \warning 不应该在DTK程序中使用QGuiApplication/QApplication::setPalette
   \return 应用程序调色板
  */
-DPalette DGuiApplicationHelper::applicationPalette() const
+DPalette DGuiApplicationHelper::applicationPalette(ColorType paletteType) const
 {
     D_DC(DGuiApplicationHelper);
 
@@ -1205,7 +1203,7 @@ DPalette DGuiApplicationHelper::applicationPalette() const
         return *d->appPalette;
     }
 
-    ColorType type = d->paletteType;
+    ColorType type = paletteType;
     bool aa_setPalette = qGuiApp && qGuiApp->testAttribute(Qt::AA_SetPalette);
     // 此时appTheme可能还未初始化, 因此先使用systemTheme, 待appTheme初始化之后会
     // 通知程序调色板发生改变
@@ -1238,6 +1236,13 @@ DPalette DGuiApplicationHelper::applicationPalette() const
     }
 
     return pa;
+}
+
+DPalette DGuiApplicationHelper::applicationPalette() const
+{
+    D_DC(DGuiApplicationHelper);
+
+    return applicationPalette(d->paletteType);
 }
 
 /*!
