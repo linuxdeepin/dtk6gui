@@ -6,7 +6,8 @@ Build-Depends: debhelper-compat (= 12), pkg-config,
  qt6-base-private-dev, qt6-base-dev-tools, qt6-tools-dev,
  libdtk6core-dev, libdtkcommon-dev(>=5.6.16),
  doxygen, graphviz, librsvg2-dev, libfreeimage-dev, libraw-dev,
- libgtest-dev, libgmock-dev, cmake
+ libgtest-dev, libgmock-dev, cmake, qt6-wayland-dev,
+ qt6-wayland-private-dev, qt6-wayland-dev-tools
 Standards-Version: 3.9.8
 
 Package: libdtk6gui
