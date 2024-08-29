@@ -6,6 +6,8 @@
 #include "dplatformhandle.h"
 #include "dplatformtheme.h"
 #include "dwindowmanagerhelper.h"
+#include "wayland/dcontextshellwindow.h"
+#include <private/qwaylandwindow_p.h>
 
 #include <QWindow>
 #include <QGuiApplication>
@@ -194,12 +196,12 @@ static void setWindowProperty(QWindow *window, const char *name, const QVariant 
   QWidget w;
   QPainterPath path;
   QFont font;
-  
+
   font.setPixelSize(100);
   path.addText(0, 150, font, "deepin");
-  
+
   DPlatformHandle handle(&w);
-  
+
   handle.setClipPath(path);
   w.resize(400, 200);
   w.show();
@@ -217,7 +219,7 @@ static void setWindowProperty(QWindow *window, const char *name, const QVariant 
   \code
   QWidget w;
   DPlatformHandle handle(&w);
-  
+
   // 为何更好的观察效果，此处将阴影改为蓝色
   handle.setShadowColor(Qt::blue);
   w.resize(400, 200);
@@ -449,26 +451,26 @@ bool DPlatformHandle::isDXcbPlatform()
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
   </pre>
   \endraw
-  
+
   但是，如果窗口管理器自身支持隐藏窗口标题栏，则此方法将优先调用 enableNoTitlebarForWindow 实现同样的效果。
-  
+
   例子：
   \code
   QWidget w1;
-  
+
   w1.setWindowTitle("使用系统边框的窗口");
   w1.show();
-  
+
   DMainWindow w2;
   QWidget w3;
-  
+
   w2.titlebar()->setTitle("使用DTK风格边框带标题栏的窗口");
   w3.setWindowTitle("使用DTK风格边框没有标题栏的窗口");
   w2.show();
-  
+
   DPlatformHandle::enableDXcbForWindow(&w3);
   w3.show(); // 因为这个窗口没有标题栏，所以不会显示窗口标题
-  
+
   \endcode
   \image dtk_and_system_window.jpeg
   开启了dxcb的窗口，在窗口外边缘10像素的范围按下鼠标左键可以触发改变窗口大小的行为，
@@ -482,7 +484,7 @@ bool DPlatformHandle::isDXcbPlatform()
   {
   public:
      explicit Window() {
-  
+
      }
 
   protected:
@@ -497,10 +499,10 @@ bool DPlatformHandle::isDXcbPlatform()
   w.show();
   \endcode
   将无法使用鼠标移动窗口w
-  
+
   窗口管理器（如X11平台上的Window Manager）是否支持混成会影响dxcb插件对窗口添加的默认装饰。
   \note 在 Deepin 桌面环境中，打开窗口特效则支持混成，关闭窗口特效则不支持混成
-  
+
   支持混成：
   \image enable_composite.png
   不支持混成：
@@ -607,6 +609,7 @@ static void initWindowRadius(QWindow *window)
 }
 
 class Q_DECL_HIDDEN CreatorWindowEventFile : public QObject {
+    bool m_windowMoving = false;
 public:
     CreatorWindowEventFile(QObject *par= nullptr): QObject(par){}
 
@@ -617,6 +620,36 @@ public:
             if (se->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated) {  // 若收到此信号， 则 WinID 已被创建
                 initWindowRadius(qobject_cast<QWindow *>(watched));
                 deleteLater();
+            }
+        }
+
+        if (auto *w = qobject_cast<QWindow *>(watched)) {
+            if(DContextShellWindow *window = DContextShellWindow::get(qobject_cast<QWindow *>(watched))) {
+                bool is_mouse_move = event->type() == QEvent::MouseMove && static_cast<QMouseEvent*>(event)->buttons() == Qt::LeftButton;
+
+                if (event->type() == QEvent::MouseButtonRelease) {
+                    m_windowMoving = false;
+                }
+
+                // workaround for kwin: Qt receives no release event when kwin finishes MOVE operation,
+                // which makes app hang in windowMoving state. when a press happens, there's no sense of
+                // keeping the moving state, we can just reset ti back to normal.
+                if (event->type() == QEvent::MouseButtonPress) {
+                    m_windowMoving = false;
+                }
+
+                // FIXME: We need to check whether the event is accepted.
+                //        Only when the upper control does not accept the event,
+                //        the window should be moved through the window.
+                //        But every event here has been accepted. I don't know what happened.
+                if (is_mouse_move && w->geometry().contains(static_cast<QMouseEvent*>(event)->globalPos())) {
+                    if (!m_windowMoving && window->noTitlebar()) {
+                        m_windowMoving = true;
+
+                        event->accept();
+                        static_cast<QtWaylandClient::QWaylandWindow *>(w->handle())->startSystemMove();
+                    }
+                }
             }
         }
 
@@ -641,8 +674,20 @@ bool DPlatformHandle::setEnabledNoTitlebarForWindow(QWindow *window, bool enable
     auto isDWaylandPlatform = [] {
         return qApp->platformName() == "dwayland" || qApp->property("_d_isDwayland").toBool();
     };
-    if (!(isDXcbPlatform() || isDWaylandPlatform()))
+    auto isTreeLand = [] {
+        return qEnvironmentVariable("DDE_CURRENT_COMPOSITOR") == "TreeLand";
+    };
+    if (!(isDXcbPlatform() || isDWaylandPlatform() || isTreeLand()))
         return false;
+
+    if (window && isTreeLand()) {
+        DContextShellWindow *contextWindow = DContextShellWindow::get(window);
+        if (contextWindow->noTitlebar() == enable)
+            return true;
+        contextWindow->setNoTitlebar(enable);
+        window->installEventFilter(new CreatorWindowEventFile(window));
+        return true;
+    }
 
     if (isEnabledNoTitlebar(window) == enable)
         return true;
@@ -714,7 +759,7 @@ inline DPlatformHandle::WMBlurArea operator *(const DPlatformHandle::WMBlurArea 
   QWindow w;
   QVector<DPlatformHandle::WMBlurArea> area_list;
   DPlatformHandle::WMBlurArea area;
-  
+
   area.x = 50;
   area.y = 50;
   area.width = 200;
@@ -722,16 +767,16 @@ inline DPlatformHandle::WMBlurArea operator *(const DPlatformHandle::WMBlurArea 
   area.xRadius = 10;
   area.yRaduis = 10;
   area_list.append(area);
-  
+
   DPlatformHandle::setWindowBlurAreaByWM(&w, area_list);
-  
+
   QSurfaceFormat format = w.format();
   format.setAlphaBufferSize(8);
-  
+
   w.setFormat(format);
   w.resize(300, 300);
   w.show();
-  
+
   \endcode
   \image blur_window_demo1.png
   \a window 目标窗口对象
@@ -823,21 +868,21 @@ inline QPainterPath operator *(const QPainterPath &path, qreal scale)
   QList<QPainterPath> path_list;
   QPainterPath path;
   QFont font;
-  
+
   font.setPixelSize(100);
   font.setBold(true);
   path.addText(0, 150, font, "deepin");
   path_list.append(path);
-  
+
   DPlatformHandle::setWindowBlurAreaByWM(&w, path_list);
-  
+
   QSurfaceFormat format = w.format();
   format.setAlphaBufferSize(8);
-  
+
   w.setFormat(format);
   w.resize(300, 300);
   w.show();
-  
+
   \endcode
   \image blur_window_demo2.png
   \a window 目标窗口对象
@@ -911,19 +956,19 @@ bool DPlatformHandle::setWindowBlurAreaByWM(QWindow *window, const QList<QPainte
   QRect area;
   WallpaperScaleMode sMode
   WallpaperFillMode fMode
-  
+
   area.setRect(50, 50, 200, 200);
   bMode = WallpaperScaleFlag::FollowWindow | WallpaperFillFlag::PreserveAspectCrop;
-  
+
   DPlatformHandle::setWindowWallpaperParaByWM(&w, area, bMode);
-  
+
   QSurfaceFormat format = w.format();
   format.setAlphaBufferSize(8);
-  
+
   w.setFormat(format);
   w.resize(300, 300);
   w.show();
-  
+
   \endcode
   \a window 目标窗口对象
   \a area 壁纸区域，此区域范围内的窗口背景将填充为用户设置的当前工作区窗口壁纸
