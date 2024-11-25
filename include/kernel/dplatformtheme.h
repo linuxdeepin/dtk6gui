@@ -13,6 +13,7 @@
 DGUI_BEGIN_NAMESPACE
 
 class DPlatformThemePrivate;
+// TODO: class DPlatformTheme will be removed in the future
 class DPlatformTheme : public DNativeSettings
 {
     Q_OBJECT
@@ -242,9 +243,6 @@ Q_SIGNALS:
 
 private:
     friend class DPlatformThemePrivate;
-
-private:
-    D_PRIVATE_SLOT(void _q_onThemePropertyChanged(const QByteArray &name, const QVariant &value))
 };
 
 DGUI_END_NAMESPACE
