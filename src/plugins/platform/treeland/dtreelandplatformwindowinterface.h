@@ -12,16 +12,37 @@
 #include "private/dplatformwindowinterface_p.h"
 
 DGUI_BEGIN_NAMESPACE
-
 class PersonalizationWindowContext;
+class DTreeLandPlatformWindowHelper : public QObject {
+    Q_OBJECT
+public:
+    static DTreeLandPlatformWindowHelper *get(QWindow *window);
+    ~DTreeLandPlatformWindowHelper() override;
+
+    QWindow *window() const { return qobject_cast<QWindow *>(parent()); }
+    PersonalizationWindowContext *windowContext() const;
+
+Q_SIGNALS:
+    void surfaceCreated();
+private slots:
+    void onActiveChanged();
+    void onSurfaceCreated();
+    void onSurfaceDestroyed();
+private:
+    explicit DTreeLandPlatformWindowHelper(QWindow *window);
+    bool eventFilter(QObject *watched, QEvent *event) override;
+    void initWaylandWindow();
+private:
+    PersonalizationWindowContext *m_windowContext = nullptr;
+    static QMap<QWindow *, DTreeLandPlatformWindowHelper*> windowMap;
+};
+
 class DTreeLandPlatformWindowInterface : public QObject, public DPlatformWindowInterface
 {
     Q_OBJECT
 public:
-    explicit DTreeLandPlatformWindowInterface(QWindow *window, DPlatformHandle *platformHandle, QObject *parent = nullptr);
+    DTreeLandPlatformWindowInterface(QWindow *window, DPlatformHandle *platformHandle, QObject *parent = nullptr);
     ~DTreeLandPlatformWindowInterface() override;
-
-    void initWaylandWindow();
 
     void setEnabled(bool enabled) override;
     bool isEnabled() const override;
@@ -37,18 +58,12 @@ public:
 
 public slots:
     void onSurfaceCreated();
-    void onSurfaceDestroyed();
 
 private:
-    PersonalizationWindowContext *getWindowContext();
-    void handlePendingTasks();
     void doSetEnabledNoTitlebar();
     void doSetWindowRadius();
     void doSetEnabledBlurWindow();
 
-    QQueue<std::function<void()>> m_pendingTasks;
-    PersonalizationManager *m_manager = nullptr;
-    PersonalizationWindowContext *m_windowContext = nullptr;
     bool m_isNoTitlebar = false;
     bool m_isWindowBlur = false;
     int m_radius = 0;

@@ -476,11 +476,8 @@ bool DPlatformHandle::isDXcbPlatform()
 void DPlatformHandle::enableDXcbForWindow(QWindow *window)
 {
     DPlatformHandle handle(window);
-#ifndef DTK_DISABLE_XCB
-    if (auto impl = dynamic_cast<DXCBPlatformWindowInterface *>(platformWindowImpl(&handle))) {
-        impl->setEnabled(true);
-    }
-#endif
+    auto impl = platformWindowImpl(&handle);
+    impl->setEnabled(true);
 }
 
 /*!
@@ -518,12 +515,8 @@ void DPlatformHandle::enableDXcbForWindow(QWindow *window, bool redirectContent)
 bool DPlatformHandle::isEnabledDXcb(const QWindow *window)
 {
     DPlatformHandle handle(const_cast<QWindow *>(window));
-#ifndef DTK_DISABLE_XCB
-    if (auto impl = dynamic_cast<DXCBPlatformWindowInterface *>(platformWindowImpl(&handle))) {
-        return impl->isEnabled();
-    }
-#endif
-    return false;
+    auto impl = platformWindowImpl(&handle);
+    return impl->isEnabled();
 }
 
 /*!
@@ -608,7 +601,8 @@ bool DPlatformHandle::setWindowBlurAreaByWM(QWindow *window, const QVector<DPlat
         return impl->setWindowBlurArea(area);
     }
 #endif
-    return false;
+    handle.setEnableBlurWindow(true);
+    return true;
 }
 
 /*!
@@ -663,7 +657,8 @@ bool DPlatformHandle::setWindowBlurAreaByWM(QWindow *window, const QList<QPainte
         return impl->setWindowBlurArea(paths);
     }
 #endif
-    return false;
+    handle.setEnableBlurWindow(true);
+    return true;
 }
 
 /*!
@@ -705,9 +700,9 @@ bool DPlatformHandle::setWindowBlurAreaByWM(QWindow *window, const QList<QPainte
  */
 bool DPlatformHandle::setWindowWallpaperParaByWM(QWindow *window, const QRect &area, WallpaperScaleMode sMode, WallpaperFillMode fMode)
 {
-    DPlatformHandle handler(window);
+    DPlatformHandle handle(window);
 #ifndef DTK_DISABLE_XCB
-    if (auto impl = dynamic_cast<DXCBPlatformWindowInterface *>(platformWindowImpl(&handler))) {
+    if (auto impl = dynamic_cast<DXCBPlatformWindowInterface *>(platformWindowImpl(&handle))) {
         return impl->setWindowWallpaperPara(area, sMode, fMode);
     }
 #endif
