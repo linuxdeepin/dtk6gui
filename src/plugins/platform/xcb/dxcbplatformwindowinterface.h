@@ -15,7 +15,7 @@ class DXCBPlatformWindowInterface : public QObject, public DPlatformWindowInterf
 {
     Q_OBJECT
 public:
-    explicit DXCBPlatformWindowInterface(QWindow *window, DPlatformHandle *platformHandle, QObject *parent = nullptr);
+    DXCBPlatformWindowInterface(QWindow *window, DPlatformHandle *platformHandle, QObject *parent = nullptr);
     ~DXCBPlatformWindowInterface() override;
 
     static QString pluginVersion();

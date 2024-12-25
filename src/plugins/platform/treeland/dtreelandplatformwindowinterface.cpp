@@ -22,7 +22,6 @@
 DCORE_USE_NAMESPACE
 
 DGUI_BEGIN_NAMESPACE
-
 class Q_DECL_HIDDEN MoveWindowHelper : public QObject
 {
 public:
@@ -143,67 +142,86 @@ bool MoveWindowHelper::windowEvent(QWindow *w, QEvent *event)
     return true;
 }
 
-class Q_DECL_HIDDEN WindowEventFilter : public QObject {
-public:
-    WindowEventFilter(DTreeLandPlatformWindowInterface *interface = nullptr)
-        : QObject(interface)
-    {
+QMap<QWindow *, DTreeLandPlatformWindowHelper*> DTreeLandPlatformWindowHelper::windowMap;
+DTreeLandPlatformWindowHelper *DTreeLandPlatformWindowHelper::get(QWindow *window) 
+{
+    if (!PersonalizationManager::instance()->isSupported()) {
+        return nullptr;
     }
 
-    DTreeLandPlatformWindowInterface *interface() const
-    {
-        return qobject_cast<DTreeLandPlatformWindowInterface *>(parent());
+    if (!window) {
+        return nullptr;
     }
 
-    bool eventFilter(QObject *watched, QEvent *event) {
-        if (event->type() == QEvent::PlatformSurface) {
-            QPlatformSurfaceEvent *se = static_cast<QPlatformSurfaceEvent*>(event);
-            if (se->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated) {
-                if (auto item = interface()) {
-                    item->initWaylandWindow();
-                    item->onSurfaceCreated();
-                }
+    if (auto helper = windowMap.value(window)) {
+        return helper;
+    }
+    auto helper = new DTreeLandPlatformWindowHelper(window);
+    windowMap[window] = helper;
+    return helper;
+}
+
+DTreeLandPlatformWindowHelper::DTreeLandPlatformWindowHelper(QWindow *window)
+    : QObject(window)
+{
+    window->installEventFilter(this);
+
+    if (!PersonalizationManager::instance()->isActive()) {
+        qWarning() << "Personalization is not active" << window;
+        connect(PersonalizationManager::instance(), &PersonalizationManager::activeChanged, this, &DTreeLandPlatformWindowHelper::onActiveChanged, Qt::QueuedConnection);
+    }
+
+    if (window->handle()) {
+        initWaylandWindow();
+    }
+}
+
+DTreeLandPlatformWindowHelper::~DTreeLandPlatformWindowHelper()
+{
+    windowMap.remove(window());
+}
+
+bool DTreeLandPlatformWindowHelper::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::PlatformSurface) {
+        QPlatformSurfaceEvent *se = static_cast<QPlatformSurfaceEvent*>(event);
+        if (se->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated) {
+            if (PersonalizationManager::instance()->isActive()) {
+                initWaylandWindow();
+                onSurfaceCreated();
             }
         }
-        return QObject::eventFilter(watched, event);
     }
-};
+    return QObject::eventFilter(watched, event);
+}
 
-DTreeLandPlatformWindowInterface::DTreeLandPlatformWindowInterface(QWindow *window, DPlatformHandle *platformHandle, QObject *parent)
-    : QObject(parent)
-    , DPlatformWindowInterface(window, platformHandle)
+void DTreeLandPlatformWindowHelper::initWaylandWindow()
 {
-    m_manager = PersonalizationManager::instance();
-    m_window->installEventFilter(new WindowEventFilter(this));
-    connect(m_manager, &PersonalizationManager::activeChanged, this, [this](){
-        if (m_manager->isActive()) {
-            handlePendingTasks();
+    auto waylandWindow = dynamic_cast<QtWaylandClient::QWaylandWindow *>(window()->handle());
+    if (!waylandWindow) {
+        qWarning() << "waylandWindow is nullptr!!!";
+        return;
+    }
+
+    connect(waylandWindow, &QtWaylandClient::QWaylandWindow::wlSurfaceCreated, this, &DTreeLandPlatformWindowHelper::onSurfaceCreated, Qt::UniqueConnection);
+    connect(waylandWindow, &QtWaylandClient::QWaylandWindow::wlSurfaceDestroyed, this, &DTreeLandPlatformWindowHelper::onSurfaceDestroyed, Qt::UniqueConnection);
+}
+
+void DTreeLandPlatformWindowHelper::onActiveChanged()
+{
+    if (PersonalizationManager::instance()->isActive()) {
+        qDebug() << "Personalization is actived, window" << window();
+        if (window()->handle()) {
+            onSurfaceCreated();
         }
-    });
-
-    if (!MoveWindowHelper::mapped.value(window)) {
-        Q_UNUSED(new MoveWindowHelper(window))
     }
-
-    initWaylandWindow();
 }
 
-DTreeLandPlatformWindowInterface::~DTreeLandPlatformWindowInterface()
+void DTreeLandPlatformWindowHelper::onSurfaceCreated()
 {
-
+    Q_EMIT surfaceCreated();
 }
 
-void DTreeLandPlatformWindowInterface::onSurfaceCreated()
-{
-    if (m_isNoTitlebar) {
-        doSetEnabledNoTitlebar();
-    }
-    if (m_isWindowBlur) {
-        doSetEnabledBlurWindow();
-    }
-}
-
-void DTreeLandPlatformWindowInterface::onSurfaceDestroyed()
+void DTreeLandPlatformWindowHelper::onSurfaceDestroyed()
 {
     if (m_windowContext) {
         m_windowContext->deleteLater();
@@ -211,52 +229,15 @@ void DTreeLandPlatformWindowInterface::onSurfaceDestroyed()
     }
 }
 
-void DTreeLandPlatformWindowInterface::initWaylandWindow()
+PersonalizationWindowContext *DTreeLandPlatformWindowHelper::windowContext() const
 {
-    // force create window handle
-    m_window->winId();
-
-    auto waylandWindow = dynamic_cast<QtWaylandClient::QWaylandWindow *>(m_window->handle());
-
-    if (!waylandWindow) {
-        qWarning() << "waylandWindow is nullptr!!!";
-        return;
-    }
-
-    connect(waylandWindow, &QtWaylandClient::QWaylandWindow::wlSurfaceCreated, this, &DTreeLandPlatformWindowInterface::onSurfaceCreated, Qt::UniqueConnection);
-    connect(waylandWindow, &QtWaylandClient::QWaylandWindow::wlSurfaceDestroyed, this, &DTreeLandPlatformWindowInterface::onSurfaceDestroyed, Qt::UniqueConnection);
-}
-
-void DTreeLandPlatformWindowInterface::setEnabled(bool enabled)
-{
-    if (setEnabledNoTitlebar(enabled)) {
-        return;
-    }
-}
-
-bool DTreeLandPlatformWindowInterface::isEnabled() const
-{
-    return isEnabledNoTitlebar();
-}
-
-PersonalizationWindowContext *DTreeLandPlatformWindowInterface::getWindowContext()
-{
-    if (!m_manager->isSupported()) {
-        return nullptr;
-    }
-    if (!m_window) {
-        qWarning() << "window is nullptr!!!";
-        return nullptr;
-    }
     if (m_windowContext) {
         return m_windowContext;
     }
 
-    auto waylandWindow = dynamic_cast<QtWaylandClient::QWaylandWindow *>(m_window->handle());
-    if (!waylandWindow) {
-        qWarning() << "waylandWindow is nullptr!!!";
+    auto waylandWindow = dynamic_cast<QtWaylandClient::QWaylandWindow *>(window()->handle());
+    if (!waylandWindow)
         return nullptr;
-    }
 
     if (!waylandWindow->waylandSurface()) {
         qWarning() << "waylandSurface is nullptr!!!";
@@ -270,18 +251,49 @@ PersonalizationWindowContext *DTreeLandPlatformWindowInterface::getWindowContext
     }
 
     if (!m_windowContext) {
-        m_windowContext =  new PersonalizationWindowContext(m_manager->get_window_context(surface));
+        const_cast<DTreeLandPlatformWindowHelper *>(this)->m_windowContext = new PersonalizationWindowContext(PersonalizationManager::instance()->get_window_context(surface));
     }
 
     return m_windowContext;
 }
 
-void DTreeLandPlatformWindowInterface::handlePendingTasks()
+DTreeLandPlatformWindowInterface::DTreeLandPlatformWindowInterface(QWindow *window, DPlatformHandle *platformHandle, QObject *parent)
+    : QObject(parent)
+    , DPlatformWindowInterface(window, platformHandle)
 {
-    while (!m_pendingTasks.isEmpty()) {
-        auto handleFunc = m_pendingTasks.dequeue();
-        handleFunc();
+    if (!MoveWindowHelper::mapped.value(window)) {
+        Q_UNUSED(new MoveWindowHelper(window))
     }
+    
+    if (auto helper = DTreeLandPlatformWindowHelper::get(m_window)) {
+        connect(helper, &DTreeLandPlatformWindowHelper::surfaceCreated, this, &DTreeLandPlatformWindowInterface::onSurfaceCreated);
+    }
+}
+
+DTreeLandPlatformWindowInterface::~DTreeLandPlatformWindowInterface()
+{
+}
+
+void DTreeLandPlatformWindowInterface::onSurfaceCreated()
+{
+    if (m_isNoTitlebar) {
+        doSetEnabledNoTitlebar();
+    }
+    if (m_isWindowBlur) {
+        doSetEnabledBlurWindow();
+    }
+}
+
+void DTreeLandPlatformWindowInterface::setEnabled(bool enabled)
+{
+    if (setEnabledNoTitlebar(enabled)) {
+        return;
+    }
+}
+
+bool DTreeLandPlatformWindowInterface::isEnabled() const
+{
+    return isEnabledNoTitlebar();
 }
 
 bool DTreeLandPlatformWindowInterface::isEnabledNoTitlebar() const
@@ -329,57 +341,40 @@ void DTreeLandPlatformWindowInterface::setEnableBlurWindow(bool enable)
 
 void DTreeLandPlatformWindowInterface::doSetEnabledNoTitlebar()
 {
-    auto handleFunc = [this](){
-        auto windowContext = getWindowContext();
-        if (!windowContext) {
-            qWarning() << "windowContext is nullptr!";
+    if (auto helper = DTreeLandPlatformWindowHelper::get(m_window)) {
+        auto context = helper->windowContext();
+        if (!context) {
             return;
         }
-        windowContext->set_titlebar(m_isNoTitlebar ? PersonalizationWindowContext::enable_mode_disable : PersonalizationWindowContext::enable_mode_enable);
-        return;
-    };
-    if (m_manager->isActive()) {
-        handleFunc();
-    } else {
-        m_pendingTasks.enqueue(handleFunc);
+        context->set_titlebar(m_isNoTitlebar ? PersonalizationWindowContext::enable_mode_disable : PersonalizationWindowContext::enable_mode_enable);
     }
 }
 
 void DTreeLandPlatformWindowInterface::doSetWindowRadius()
 {
-    auto handleFunc = [this](){
-        auto windowContext = getWindowContext();
-        if (!windowContext) {
-            qWarning() << "windowContext is nullptr!";
+    if (auto helper = DTreeLandPlatformWindowHelper::get(m_window)) {
+        auto context = helper->windowContext();
+        if (!context) {
             return;
         }
-        windowContext->set_round_corner_radius(m_radius);
+        context->set_round_corner_radius(m_radius);
         if (m_platformHandle) {
             Q_EMIT m_platformHandle->windowRadiusChanged();
         }
-        return;
-    };
-    if (m_manager->isActive()) {
-        handleFunc();
-    } else {
-        m_pendingTasks.enqueue(handleFunc);
     }
 }
 
 void DTreeLandPlatformWindowInterface::doSetEnabledBlurWindow()
 {
-    auto handleFunc = [this](){
-        auto windowContext = getWindowContext();
-        if (!windowContext) {
-            qWarning() << "windowContext is nullptr!";
+    if (auto helper = DTreeLandPlatformWindowHelper::get(m_window)) {
+        auto context = helper->windowContext();
+        if (!context) {
             return;
         }
-        windowContext->set_blend_mode(m_isWindowBlur ? PersonalizationWindowContext::blend_mode_blur : PersonalizationWindowContext::blend_mode_transparent);
-    };
-    if (m_manager->isActive()) {
-        handleFunc();
-    } else {
-        m_pendingTasks.enqueue(handleFunc);
+        context->set_blend_mode(m_isWindowBlur ? PersonalizationWindowContext::blend_mode_blur : PersonalizationWindowContext::blend_mode_transparent);
+        if (m_platformHandle) {
+            Q_EMIT m_platformHandle->enableBlurWindowChanged();
+        }
     }
 }
 DGUI_END_NAMESPACE

@@ -79,7 +79,7 @@ void DPlatformWindowInterface::setBorderColor(const QColor &borderColor)
 
 int DPlatformWindowInterface::shadowRadius() const
 {
-    return -1;
+    return {};
 }
 
 void DPlatformWindowInterface::setShadowRadius(int shadowRadius)
