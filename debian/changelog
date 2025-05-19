@@ -1,3 +1,9 @@
+dtk6gui (6.0.36) unstable; urgency=medium
+
+  * Release 6.0.36
+
+ -- YeShanShan <yeshanshan@uniontech.com>  Mon, 19 May 2025 17:23:31 +0800
+
 dtk6gui (6.0.35) unstable; urgency=medium
 
   * sync: from linuxdeepin/dtkgui
