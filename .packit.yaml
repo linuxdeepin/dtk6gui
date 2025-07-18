@@ -4,7 +4,7 @@
 specfile_path: rpm/dtkgui.spec
 
 # add or remove files that should be synced
-files_to_sync:
+synced_files:
     - rpm/dtkgui.spec
     - .packit.yaml
 
