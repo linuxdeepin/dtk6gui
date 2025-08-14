@@ -1,6 +1,6 @@
 # Maintainer: justforlxz <justforlxz@gmail.com>
 pkgname=dtk6gui-git
-pkgver=6.0.40
+pkgver=6.0.41
 pkgrel=1
 sourcename=dtk6gui
 sourcetars=("$sourcename"_"$pkgver".tar.xz)
